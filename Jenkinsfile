@@ -32,7 +32,9 @@ pipeline {
     }
     stage('Deploy image and Remove Unused  image') {
       steps{
-        sh "docker run -d -p 80:80 $imagename:$BUILD_NUMBER"
+        sh "docker stop devops"
+        sh "docker rm devops"
+        sh "docker run -d -p 80:80 --name devops $imagename:$BUILD_NUMBER"
         sh "docker rmi $imagename:$BUILD_NUMBER"
          sh "docker rmi $imagename:latest"
 
