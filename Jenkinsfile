@@ -1,44 +1,55 @@
 pipeline {
-  environment {
-    imagename = "whosan3/devops-course"
-    registryCredential = 'docker-hub'
-    dockerImage = ''
-  }
-  agent any
-  stages {
-    stage('Cloning Git') {
-      steps {
-        git([url: 'git@github.com:whos4n3/devops-course.git', branch: 'master', credentialsId: 'github-ssh-key'])
-
-      }
+    
+    agent any
+    
+    environment{
+        dockerImage=''
+        registry ='umahato/dockerfile1'
+        registryCredential = 'dockerhub_id'
     }
-    stage('Building image') {
-      steps{
-        script {
-          dockerImage = docker.build imagename
+    
+    stages {
+        stage('Checkout'){
+            steps {
+                checkout([$class: 'GitSCM', branches: [[name: '*/master']], extensions: [], userRemoteConfigs: [[url: 'https://github.com/umahato/devops-course-1']]])
+            }
         }
-      }
-    }
-    stage('Push Image') {
-      steps{
-        script {
-          docker.withRegistry( '', registryCredential ) {
-            dockerImage.push("$BUILD_NUMBER")
-             dockerImage.push('latest')
-
-          }
+        
+        stage('Build Docker Image'){
+            steps{
+                script{
+                    dockerImage=docker.build registry
+                }
+            }
         }
-      }
+        
+        stage('Uploading Image'){
+            steps{
+                script{
+                        docker.withRegistry('',registryCredential){
+                            dockerImage.push("$BUILD_NUMBER")
+                            dockerImage.push('latest')
+                        }
+                    
+                }
+            }    
+        }
+        
+        // Stopping Docker containers for cleaner Docker run
+        stage('docker stop container') {
+            steps {
+                    sh 'docker ps -f name=myapacheContainer -q | xargs --no-run-if-empty docker container stop'
+                    sh 'docker container ls -a -fname=myapacheContainer -q | xargs -r docker container rm'
+            }
+        }
+    
+        // Running Docker container, make sure port 8096 is opened in 
+        stage('Docker Run') {
+            steps{
+                script {
+                            dockerImage.run("-p 86:80 --rm --name myapacheContainer")
+                }
+            }
+        }
     }
-    stage('Deploy image and Remove Unused  image') {
-      steps{
-        sh "docker stop devops"
-        sh "docker rm devops"
-        sh "docker run -d -p 80:80 --name devops $imagename:$BUILD_NUMBER"
-        sh "docker rmi $imagename:$BUILD_NUMBER"
-         sh "docker rmi $imagename:latest"
-
-      }
-    }
-  }
 }
